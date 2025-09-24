@@ -20,7 +20,7 @@ public class Plugin : BaseUnityPlugin {
     private void Awake() {
         Log.Init(Logger);
 
-        LoadSinnerTextures();
+        //LoadSinnerTextures();
 
         _harmony = new Harmony(MyPluginInfo.PLUGIN_GUID);
         #if DEBUG

@@ -18,9 +18,9 @@
 
     <PropertyGroup>
         <!--These properties will control the generated PluginInfo. Version is also used by various parts of the build system.-->
-        <BepInExPluginGuid>LostSinner</BepInExPluginGuid>
-        <BepInExPluginName>LostSinner</BepInExPluginName>
-        <Version>0.4.0</Version>
+        <BepInExPluginGuid>GodDance</BepInExPluginGuid>
+        <BepInExPluginName>GodDance</BepInExPluginName>
+        <Version>0.0.0</Version>
     </PropertyGroup>
 
     <ItemGroup>
