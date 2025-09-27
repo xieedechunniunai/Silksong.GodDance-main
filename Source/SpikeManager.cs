@@ -13,7 +13,7 @@ namespace GodDance.Source;
 /// <summary>
 /// Manages all loaded assets in the mod.
 /// </summary>
-internal static class AssetManager {
+internal static class SpikeManager {
     private static string[] _bundleNames = new[] {
         "localpoolprefabs_assets_laceboss"
     };
