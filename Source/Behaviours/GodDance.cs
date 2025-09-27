@@ -16,7 +16,7 @@ namespace GodDance.Source.Behaviours;
 [RequireComponent(typeof(PlayMakerFSM))]
 internal class GodDance : MonoBehaviour
 {
-    private const float GroundY = 13;
+    //private const float GroundY = 13;
 
     private tk2dSpriteAnimator _anim = null!;
     private Rigidbody2D _body = null!;
@@ -25,23 +25,35 @@ internal class GodDance : MonoBehaviour
 
     private void Awake()
     {
-        StartCoroutine(SetupBoss());
+        // orig(self)
+        // StartCoroutine(SetupBoss());
     }
-
+    private void Start()
+    {
+    }
+    private void Update()
+    {
+    }
     /// <summary>
     /// Set up the modded boss.
     /// </summary>
+    /// 
+    private IEnumerator DelayedSetup()
+    {
+        yield return null;  // 等待一帧
+        StartCoroutine(SetupBoss());
+    }
     private IEnumerator SetupBoss()
     {
-        yield return AssetManager.ManuallyLoadBundles();
-        yield return AssetManager.Initialize();
 
         GetComponents();
-        ChangeBlackThreadVoice();
-        ChangeTextures();
+        //ChangeBlackThreadVoice();
+        //ChangeTextures();
         ModifyDamage();
         IncreaseHealth();
         ModifyFsm();
+        Log.Info($" Awake Finish ===================");
+        yield return null;
     }
 
     /// <summary>
@@ -49,33 +61,34 @@ internal class GodDance : MonoBehaviour
     /// </summary>
     private void GetComponents()
     {
+        Log.Info($"{gameObject.name} Awake");
         _anim = GetComponent<tk2dSpriteAnimator>();
         _body = GetComponent<Rigidbody2D>();
-        _control = gameObject.LocateMyFSM("Control");
+        _control = FSMUtility.LocateMyFSM(base.gameObject, "Control");
         _heroTransform = HeroController.instance.transform;
     }
 
     /// <summary>
     /// Distort the boss's voice to be like other void-corrupted enemies.
     /// </summary>
-    private void ChangeBlackThreadVoice()
-    {
-        var voiceAudio = transform.Find("Audio Loop Voice").GetComponent<AudioSource>();
-        var blackThreadMixerGroup =
-            voiceAudio.outputAudioMixerGroup.audioMixer.FindMatchingGroups("Actors VoiceBlackThread");
-        voiceAudio.outputAudioMixerGroup = blackThreadMixerGroup[0];
-    }
+    // private void ChangeBlackThreadVoice()
+    // {
+    //     var voiceAudio = transform.Find("Audio Loop Voice").GetComponent<AudioSource>();
+    //     var blackThreadMixerGroup =
+    //         voiceAudio.outputAudioMixerGroup.audioMixer.FindMatchingGroups("Actors VoiceBlackThread");
+    //     voiceAudio.outputAudioMixerGroup = blackThreadMixerGroup[0];
+    // }
 
     /// <summary>
     /// Change the <see cref="Texture2D">texture</see> atlases of the boss.
     /// </summary>
-    private void ChangeTextures()
-    {
-        var sprite = GetComponent<tk2dSprite>();
-        var cln = sprite.Collection;
-        cln.materials[0].mainTexture = Plugin.AtlasTextures[0];
-        cln.materials[1].mainTexture = Plugin.AtlasTextures[1];
-    }
+    // private void ChangeTextures()
+    // {
+    //     var sprite = GetComponent<tk2dSprite>();
+    //     var cln = sprite.Collection;
+    //     cln.materials[0].mainTexture = Plugin.AtlasTextures[0];
+    //     cln.materials[1].mainTexture = Plugin.AtlasTextures[1];
+    // }
 
     /// <summary>
     /// Modify the damage behavior of the boss.
@@ -102,11 +115,20 @@ internal class GodDance : MonoBehaviour
     /// </summary>
     private void IncreaseHealth()
     {
+
         var health = GetComponent<HealthManager>();
-#if DEBUG
-        health.hp = 100;
-#endif
-        health.hp += 300;
+        if (health != null)
+        {
+            health.hp += 300;
+        }
+        else
+        {
+            Log.Error("HealthManager component not found on the boss object.");
+        }
+        _control.FsmVariables.GetFsmInt("Phase 1 HP").Value += 300;
+        _control.FsmVariables.GetFsmInt("Phase 2 HP").Value += 300;
+        _control.FsmVariables.GetFsmInt("Phase 3 HP").Value += 300;
+        Log.Info("机驱舞者加血成功Health increased.");
     }
 
     /// <summary>
@@ -125,6 +147,7 @@ internal class GodDance : MonoBehaviour
         //AddAbyssTendrilsToCharge();
         //AddVomitGlobAttack();
         //MakeFacingSecondSlash();
+        IncreaseHealth();
         ShortAttackWaitTime();
         ModifyPhase2();
     }
@@ -132,96 +155,9 @@ internal class GodDance : MonoBehaviour
     /// <summary>
     /// Spawn abyss tendrils while the boss is performing a charging slice.
     /// </summary>
-    private void AddAbyssTendrilsToCharge()
-    {
-        var groundTendrilPrefab = AssetManager.Get<GameObject>("Lost Lace Ground Tendril");
-        if (!groundTendrilPrefab)
-        {
-            return;
-        }
-
-        var sinnerStates = _control.FsmStates;
-        foreach (var sinnerState in sinnerStates)
-        {
-            if (sinnerState.Name == "Slice Charge")
-            {
-                var chargeActions = sinnerState.Actions.ToList();
-                chargeActions.Insert(0, new SpawnObjectFromGlobalPoolOverTime
-                {
-                    gameObject = groundTendrilPrefab,
-                    spawnPoint = gameObject,
-                    position = Vector3.up * (GroundY - 11.2f),
-                    rotation = Vector3.one,
-                    frequency = 0.4f
-                });
-                sinnerState.Actions = chargeActions.ToArray();
-            }
-        }
-    }
-
     /// <summary>
     /// Add a new attack where the boss spawns abyss vomit globs.
     /// </summary>
-    private void AddVomitGlobAttack()
-    {
-        var vomitRoutineState = new FsmState(_control.Fsm);
-        vomitRoutineState.Name = "Vomit Routine";
-        vomitRoutineState.Actions = [
-            new InvokeCoroutine(VomitGlobAttack, true)
-        ];
-
-        _control.Fsm.States = _control.FsmStates.Append(vomitRoutineState).ToArray();
-
-        var vomitEvent = new FsmEvent("VOMIT");
-        var vomitTransition = new FsmTransition
-        {
-            ToFsmState = vomitRoutineState,
-            ToState = vomitRoutineState.Name,
-            FsmEvent = vomitEvent,
-        };
-
-        var idleState = _control.FsmStates.First(state => state.Name == "Idle");
-        var vomitToIdleTransition = new FsmTransition
-        {
-            ToFsmState = idleState,
-            ToState = "Idle",
-            FsmEvent = FsmEvent.Finished,
-        };
-
-        vomitRoutineState.Transitions = [vomitToIdleTransition];
-
-        var vomitTracker = new FsmInt("Ct Vomit");
-        vomitTracker.Value = 0;
-        var vomitMax = new FsmInt("Vomit Max");
-        vomitMax.Value = 2;
-        var vomitMissed = new FsmInt("Ms Vomit");
-        vomitMissed.Value = 0;
-        var vomitMissedMax = new FsmInt("Ms Vomit");
-        vomitMissedMax.Value = 3;
-        _control.FsmVariables.IntVariables = _control.FsmVariables.IntVariables.Append(vomitTracker).ToArray();
-        foreach (var sinnerState in _control.FsmStates)
-        {
-            if (sinnerState.Name is "P1 Early" or "P1" or "P2" or "No Tele Event" or "Tele Event")
-            {
-                sinnerState.Transitions = sinnerState.Transitions.Append(vomitTransition).ToArray();
-                int actionIndex = 0;
-                if (sinnerState.Name is "P1 Early" or "P1")
-                {
-                    actionIndex = 1;
-                }
-
-                if (sinnerState.Actions[actionIndex] is SendRandomEventV3 randomAttack)
-                {
-                    randomAttack.events = randomAttack.events.Append(vomitEvent).ToArray();
-                    randomAttack.weights = randomAttack.weights.Append(0.5f).ToArray();
-                    randomAttack.trackingInts = randomAttack.trackingInts.Append(vomitTracker).ToArray();
-                    randomAttack.eventMax = randomAttack.eventMax.Append(vomitMax).ToArray();
-                    randomAttack.trackingIntsMissed = randomAttack.trackingIntsMissed.Append(vomitMissed).ToArray();
-                    randomAttack.missedMax = randomAttack.missedMax.Append(vomitMissedMax).ToArray();
-                }
-            }
-        }
-    }
 
     /// <summary>
     /// Make the second slash of the double slash attack face the player.
@@ -282,7 +218,7 @@ internal class GodDance : MonoBehaviour
                     SetHP.hp = 600;
                     aa += 1;
                 }
-                if(aa >= 4){break;}
+                if (aa >= 2) { break; }
             }
         }
     }
@@ -309,7 +245,7 @@ internal class GodDance : MonoBehaviour
                     SetHP.hp = 600;
                     aa += 1;
                 }
-                if(aa >= 4){break;}
+                if (aa >= 4) { break; }
             }
         }
     }
@@ -392,65 +328,6 @@ internal class GodDance : MonoBehaviour
     /// <summary>
     /// Perform the new abyss vomit glob attack.
     /// </summary>
-    private IEnumerator VomitGlobAttack()
-    {
-        var abyssGlobPrefab = AssetManager.Get<GameObject>("Abyss Vomit Glob");
-        if (abyssGlobPrefab == null)
-        {
-            yield break;
-        }
-
-        var audioPlayerPrefab = AssetManager.Get<GameObject>("Audio Player Actor Simple");
-        if (audioPlayerPrefab == null)
-        {
-            yield break;
-        }
-
-        var spitClip = AssetManager.Get<AudioClip>("mini_mawlek_spit");
-        if (spitClip == null)
-        {
-            yield break;
-        }
-
-        _anim.Play("Cast");
-        FaceHero();
-        _body.linearVelocity = new Vector2(0, 15f);
-
-        float riseTime = 0.25f;
-        float riseTimer = 0;
-        yield return new WaitUntil(() => {
-            riseTimer += Time.deltaTime;
-
-            var newVelocityY = _body.linearVelocity.y * 0.85f;
-            _body.linearVelocity = new Vector2(_body.linearVelocity.x, newVelocityY);
-
-            return riseTimer >= riseTime;
-        });
-
-        _body.linearVelocity = new Vector2(_body.linearVelocity.x, 0);
-
-        int shots = Random.Range(5, 8);
-        for (int i = 0; i < shots; i++)
-        {
-            FlingUtils.SpawnAndFling(new FlingUtils.Config
-            {
-                Prefab = abyssGlobPrefab,
-                SpeedMin = 20,
-                SpeedMax = 30,
-                AngleMin = 45,
-                AngleMax = 135,
-                AmountMin = 1,
-                AmountMax = 1,
-            }, transform, Vector3.up * 2);
-            var audioPlayer = audioPlayerPrefab.Spawn(transform.position);
-            var audioSource = audioPlayer.GetComponent<AudioSource>();
-            audioSource.pitch = Random.Range(0.85f, 1.15f);
-            audioSource.PlayOneShot(spitClip);
-            yield return new WaitForSeconds(0.05f);
-        }
-
-        _control.SendEvent("FINISHED");
-    }
 
     /// <summary>
     /// Face the player.
@@ -464,10 +341,5 @@ internal class GodDance : MonoBehaviour
             scale.x *= -1;
             transform.localScale = scale;
         }
-    }
-
-    private void OnDestroy()
-    {
-        AssetManager.UnloadManualBundles();
     }
 }
