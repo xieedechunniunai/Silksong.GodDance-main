@@ -1,11 +1,13 @@
-﻿using System.Collections;
+﻿using System;
+using System.Collections;
 using System.Collections.Generic;
 using System.Linq;
+using UnityEngine;
+using UnityEngine.SceneManagement;
 using GlobalEnums;
 using HutongGames.PlayMaker;
 using HutongGames.PlayMaker.Actions;
-using UnityEngine;
-
+using UnityObject = UnityEngine.Object;
 namespace GodDance.Source.Behaviours;
 
 /// <summary>
@@ -21,93 +23,144 @@ internal class GodDance : MonoBehaviour
     private tk2dSpriteAnimator _anim = null!;
     private Rigidbody2D _body = null!;
     private PlayMakerFSM _control = null!;
+    private PlayMakerFSM _parentControl = null!;  // 添加父控制器引用
     private Transform _heroTransform = null!;
+    private GameObject _spikeMaster = null!;     // 添加spikeMaster引用
+    private GameObject _spikeTemplate;
+    private GameObject _spikeClone;
+    private GameObject _spikeClone2;
 
+    private GameObject _spikeClone3;
+    private GameObject _spikeClone4;
+    private GameObject _spikeClone5;
+    private GameObject spikes = null!;
+    private int Phase = 1;                       // 添加Phase变量
+    private static bool _assetManagerInitialized = false;
+    private bool flag = true;
+    private bool flag2 = true;
     private void Awake()
     {
-        // orig(self)
-        // StartCoroutine(SetupBoss());
     }
+
     private void Start()
     {
+        StartCoroutine(DelayedSetup());
     }
+
     private void Update()
     {
+        if (flag2 && _parentControl != null)
+        {
+            Phase = _parentControl.FsmVariables.GetFsmInt("Phase").value;
+            if (Phase == 2)
+            {
+                Log.Info("添加新攻击");
+                StartCoroutine(NewSpikeAttack());
+                flag2 = false;
+            }
+        }
     }
+
     /// <summary>
     /// Set up the modded boss.
     /// </summary>
-    /// 
     private IEnumerator DelayedSetup()
     {
         yield return null;  // 等待一帧
         StartCoroutine(SetupBoss());
     }
+
     private IEnumerator SetupBoss()
     {
+        // 只有第一个实例才加载AssetBundle
+        if (!AssetManager.IsInitialized())
+        {
+            if (!_assetManagerInitialized)
+            {
+                _assetManagerInitialized = true;
+                Log.Info($" 加载资源");
+                //yield return AssetManager.ManuallyLoadBundles();
+                yield return AssetManager.Initialize();
+            }
+        }
+        else
+        {
+            // 等待资源初始化完成
+            while (!AssetManager.IsInitialized())
+            {
+                Log.Info($" 等待资源初始化");
+                yield return null;
+            }
+        }
 
         GetComponents();
-        //ChangeBlackThreadVoice();
-        //ChangeTextures();
-        ModifyDamage();
-        IncreaseHealth();
-        ModifyFsm();
-        Log.Info($" Awake Finish ===================");
+        ModifyParentFsm();  // 添加调用父控制器修改方法
+        Log.Info($" 总控制修改完成");
         yield return null;
     }
-
     /// <summary>
     /// Fetch necessary <see cref="Component">components</see> used by this behavior.
     /// </summary>
     private void GetComponents()
     {
-        Log.Info($"{gameObject.name} Awake");
         _anim = GetComponent<tk2dSpriteAnimator>();
         _body = GetComponent<Rigidbody2D>();
         _control = FSMUtility.LocateMyFSM(base.gameObject, "Control");
         _heroTransform = HeroController.instance.transform;
+
+        // 添加父控制器和spikeMaster的获取
+        var initState = _control.FsmStates.FirstOrDefault(state => state.name == "Init");
+        if (initState != null)
+        {
+            var getParentAction = initState.Actions
+                .OfType<GetParent>()
+                .FirstOrDefault();
+
+            if (getParentAction != null)
+            {
+                var parentGO = getParentAction.storeResult.Value;
+                if (parentGO != null)
+                {
+                    _parentControl = parentGO.GetComponent<PlayMakerFSM>();
+                    Log.Info("Parent Control FSM found.");
+                }
+            }
+            else
+            {
+                Log.Info("GetParent action not found in Init state.");
+            }
+        }
+        else
+        {
+            Log.Error("Init state not found in Control FSM.");
+        }
+        this._spikeMaster = GameObject.Find("Spike Control");
     }
 
     /// <summary>
-    /// Distort the boss's voice to be like other void-corrupted enemies.
+    /// Modify parent FSM behaviors.
     /// </summary>
-    // private void ChangeBlackThreadVoice()
-    // {
-    //     var voiceAudio = transform.Find("Audio Loop Voice").GetComponent<AudioSource>();
-    //     var blackThreadMixerGroup =
-    //         voiceAudio.outputAudioMixerGroup.audioMixer.FindMatchingGroups("Actors VoiceBlackThread");
-    //     voiceAudio.outputAudioMixerGroup = blackThreadMixerGroup[0];
-    // }
-
-    /// <summary>
-    /// Change the <see cref="Texture2D">texture</see> atlases of the boss.
-    /// </summary>
-    // private void ChangeTextures()
-    // {
-    //     var sprite = GetComponent<tk2dSprite>();
-    //     var cln = sprite.Collection;
-    //     cln.materials[0].mainTexture = Plugin.AtlasTextures[0];
-    //     cln.materials[1].mainTexture = Plugin.AtlasTextures[1];
-    // }
-
-    /// <summary>
-    /// Modify the damage behavior of the boss.
-    /// </summary>
-    private void ModifyDamage()
+    private void ModifyParentFsm()
     {
-        var damageFlags = DamagePropertyFlags.Void;
-        foreach (var damageHero in GetComponentsInChildren<DamageHero>(true))
-        {
-            var multiWounderFsm = damageHero.gameObject.LocateMyFSM("hornet_multi_wounder");
-            if (multiWounderFsm)
-            {
-                multiWounderFsm.Fsm.GetFsmBool("z3 Force Black Threaded").Value = true;
-                continue;
-            }
+        if (_parentControl == null) return;
 
-            damageHero.damageDealt = 1;
-            damageHero.damagePropertyFlags = damageFlags;
+        var bindState = _parentControl.FsmStates.FirstOrDefault(state => state.Name == "Pendulum Prepare");
+        if (bindState != null)
+        {
+            foreach (var action in bindState.Actions)
+            {
+                if (action is Wait wait)
+                {
+                    wait.time = 0.3f;
+                    break;
+                }
+            }
         }
+
+        ModifyPhase2();
+        ModifyPhase3();
+        ModifyFinalPhase();
+        IncreaseHealth();
     }
 
     /// <summary>
@@ -115,231 +168,176 @@ internal class GodDance : MonoBehaviour
     /// </summary>
     private void IncreaseHealth()
     {
-
-        var health = GetComponent<HealthManager>();
-        if (health != null)
+        _parentControl.FsmVariables.GetFsmInt("Phase 1 HP").Value = 274;
+        var InitState = _parentControl.FsmStates.FirstOrDefault(state => state.name == "Init");
+        if (InitState != null)
         {
-            health.hp += 300;
+            foreach (var action in InitState.Actions)
+            {
+                if (action is SetHP setHP)
+                {
+                    setHP.hp =274;
+                }
+            }
         }
-        else
-        {
-            Log.Error("HealthManager component not found on the boss object.");
-        }
-        _control.FsmVariables.GetFsmInt("Phase 1 HP").Value += 300;
-        _control.FsmVariables.GetFsmInt("Phase 2 HP").Value += 300;
-        _control.FsmVariables.GetFsmInt("Phase 3 HP").Value += 300;
+        _parentControl.FsmVariables.GetFsmInt("Phase 2 HP").Value += 300;
+        _parentControl.FsmVariables.GetFsmInt("Phase 3 HP").Value += 300;
+        _parentControl.FsmVariables.GetFsmInt("Phase 4 HP").Value = 1314;
         Log.Info("机驱舞者加血成功Health increased.");
     }
 
-    /// <summary>
-    /// Remove the boss's ability to be stunned.
-    /// </summary>
-    // private void RemoveStuns()
-    // {
-    //     Destroy(gameObject.LocateMyFSM("Stun Control"));
-    // }
-
-    /// <summary>
-    /// Update the boss's <see cref="PlayMakerFSM">state machine</see>.
-    /// </summary>
-    private void ModifyFsm()
+    private void ModifyPhase2()
     {
-        //AddAbyssTendrilsToCharge();
-        //AddVomitGlobAttack();
-        //MakeFacingSecondSlash();
-        IncreaseHealth();
-        ShortAttackWaitTime();
-        ModifyPhase2();
-    }
-
-    /// <summary>
-    /// Spawn abyss tendrils while the boss is performing a charging slice.
-    /// </summary>
-    /// <summary>
-    /// Add a new attack where the boss spawns abyss vomit globs.
-    /// </summary>
-
-    /// <summary>
-    /// Make the second slash of the double slash attack face the player.
-    /// </summary>
-    private void MakeFacingSecondSlash()
-    {
-        var slash3State = _control.FsmStates.FirstOrDefault(state => state.Name == "Slash 3");
-        if (slash3State != null)
+        var p2StartState = _parentControl.FsmStates.FirstOrDefault(state => state.name == "Set Phase 2");
+        if (p2StartState != null)
         {
-            var slashActions = slash3State.Actions.ToList();
-            slashActions.Insert(0, new InvokeMethod(FaceHero));
-            slash3State.Actions = slashActions.ToArray();
+            foreach (var action in p2StartState.Actions)
+            {
+                if (action is SetFsmFloat setFsmFloat)
+                {
+                    setFsmFloat.setValue = 0.43f;
+                }
+            }
         }
     }
 
-    /// <summary>
-    /// Shorten the duration of the boss's healing bind.
-    /// </summary>
-    private void ShortAttackWaitTime()
+    private void ModifyPhase3()
     {
-        var bindState = _control.FsmStates.FirstOrDefault(state => state.Name == "Pendulum Prepare");
-        if (bindState != null)
+        var p2StartState = _parentControl.FsmStates.FirstOrDefault(state => state.name == "Set Phase 3");
+        if (p2StartState != null)
         {
-            foreach (var action in bindState.Actions)
+            foreach (var action in p2StartState.Actions)
             {
-                if (action is Wait wait)
+                if (action is SetFsmFloat setFsmFloat)
                 {
-                    wait.time = 1f;
+                    setFsmFloat.setValue = 0.36f;
+                }
+            }
+        }
+    }
+
+    private void ModifyFinalPhase()
+    {
+        var p2StartState = _parentControl.FsmStates.FirstOrDefault(state => state.name == "Set Final Phase");
+        if (p2StartState != null)
+        {
+            foreach (var action in p2StartState.Actions)
+            {
+                if (action is SetFsmFloat setFsmFloat)
+                {
+                    setFsmFloat.setValue = 0.15f;
+                }
+                if (action is SetHP SetHP)
+                {
+                    SetHP.hp.value += 100;
                     break;
                 }
             }
         }
     }
 
-    /// <summary>
-    /// Make changes when the boss enters phase 2.
-    /// </summary>
-    private void ModifyPhase2()
+    private IEnumerator NewSpikeAttack()
     {
-        var p2StartState = _control.FsmStates.FirstOrDefault(state => state.name == "Set Phase 2");
-        if (p2StartState != null)
+        // var allAssets = AssetManager.GetAllAssetDetails();
+        // foreach (var (name, type, asset) in allAssets)
+        // {
+        //     Log.Info($"Asset Name: {name}, Type: {type}, Instance: {asset}");
+        // }
+        Vector3 spawnPosition1 = new Vector3(50, 11, 1); // 设置你想要的坐标
+        Vector3 spawnPosition2 = new Vector3(10, 11, 1); // 设置你想要的坐标
+        Quaternion spawnRotation = Quaternion.identity; // 设置你想要的旋转
+        // 先尝试从 AssetManager 获取 Spike Collider
+        // var spikeColliderPrefab = AssetManager.Get<GameObject>("Spike Collider");
+        // if (spikeColliderPrefab != null)
+        // {
+        //     // 实例化 AssetManager 中的预制体
+        //     Vector3 spawnPosition = new Vector3(50, 11, 1);
+        //     Instantiate(spikeColliderPrefab, spawnPosition, Quaternion.identity);
+        //     Log.Info("从 AssetManager 实例化 Spike Collider 成功");
+        // }
+        // else
+        // {
+        //     // 如果 AssetManager 中没有，则从场景中查找并复制
+        //     GameObject spikeColliderInstance = GameObject.Find("Spike Collider");
+        //     if (spikeColliderInstance != null)
+        //     {
+        //         // 实例化场景中的对象
+        //         Vector3 spawnPosition = spawnPosition1;
+        //         Instantiate(spikeColliderInstance, spawnPosition, Quaternion.identity);
+        //         Log.Info("从场景中实例化 Spike Collider 成功");
+        //     }
+        //     else
+        //     {
+        //         Log.Error("未能在场景中找到 Spike Collider");
+        //     }
+        // }
+        // var spikesPict2 = AssetManager.Get<GameObject>("cog_dancer_blade_sphere");
+        // if (spikesPict2 == null)
+        // {
+        //     Log.Error("未能找到单个刺贴图的gameobject.");
+        //     yield break;
+        // }
+        // else
+        // {
+        //     Instantiate(spikesPict2, spawnPosition1, spawnRotation);
+        //     Instantiate(spikesPict2, spawnPosition2, spawnRotation);
+        //     Log.Info("已实例化刺.");
+        // }
+        _spikeTemplate = AssetManager.Get<GameObject>("cog_dancer_flash_impact");
+        if (_spikeTemplate == null)
         {
-            // p2StartState.Actions = p2StartState.Actions
-            //     .Append(new InvokeMethod(IncreaseChargeSliceSpeed))
-            //     .Append(new InvokeMethod(SpeedUpPhase2Pins))
-            //     .Append(new InvokeMethod(SlashToCharge))
-            //     .ToArray();
-            int aa = 0;
-            foreach (var action in p2StartState.Actions)
-            {
-                if (action is SetFsmFloat setFsmFloat)
-                {
-                    setFsmFloat.setValue = 0.25f;
-                    aa += 1;
-                }
-                if (action is SetHP SetHP)
-                {
-                    SetHP.hp = 600;
-                    aa += 1;
-                }
-                if (aa >= 2) { break; }
-            }
+            Log.Error("未能找到模板刺的gameobject.");
+            yield break;
         }
-    }
-    private void ModifyPhase3()
-    {
-        var p2StartState = _control.FsmStates.FirstOrDefault(state => state.name == "Set Phase 3");
-        if (p2StartState != null)
+        else
         {
-            // p2StartState.Actions = p2StartState.Actions
-            //     .Append(new InvokeMethod(IncreaseChargeSliceSpeed))
-            //     .Append(new InvokeMethod(SpeedUpPhase2Pins))
-            //     .Append(new InvokeMethod(SlashToCharge))
-            //     .ToArray();
-            int aa = 0;
-            foreach (var action in p2StartState.Actions)
-            {
-                if (action is SetFsmFloat setFsmFloat)
-                {
-                    setFsmFloat.setValue = 0.25f;
-                    aa += 1;
-                }
-                if (action is SetHP SetHP)
-                {
-                    SetHP.hp = 600;
-                    aa += 1;
-                }
-                if (aa >= 4) { break; }
-            }
+            this._spikeClone = UnityObject.Instantiate<GameObject>(this._spikeTemplate);
+            Extensions.SetPositionX(this._spikeClone.transform, 50);
+            Extensions.SetPositionY(this._spikeClone.transform, 11);
+            this._spikeClone2 = UnityObject.Instantiate<GameObject>(this._spikeTemplate);
+            Extensions.SetPositionX(this._spikeClone2.transform, 50.5f);
+            Extensions.SetPositionY(this._spikeClone2.transform, 11);
+            this._spikeClone3 = UnityObject.Instantiate<GameObject>(this._spikeTemplate);
+            Extensions.SetPositionX(this._spikeClone3.transform, 51f);
+            Extensions.SetPositionY(this._spikeClone3.transform, 11);
+            this._spikeClone4 = UnityObject.Instantiate<GameObject>(this._spikeTemplate);
+            Extensions.SetPositionX(this._spikeClone4.transform, 51.5f);
+            Extensions.SetPositionY(this._spikeClone4.transform, 11);
+            this._spikeClone5 = UnityObject.Instantiate<GameObject>(this._spikeTemplate);
+            Extensions.SetPositionX(this._spikeClone5.transform, 52f);
+            Extensions.SetPositionY(this._spikeClone5.transform, 11);
+            Instantiate(this._spikeClone, spawnPosition1, spawnRotation);
+            Instantiate(this._spikeClone2, spawnPosition1, spawnRotation);
+            Instantiate(this._spikeClone3, spawnPosition1, spawnRotation);
+            Instantiate(this._spikeClone4, spawnPosition1, spawnRotation);
+            Instantiate(this._spikeClone5, spawnPosition1, spawnRotation);
+            Log.Info("已实例化一堆刺.");
         }
-    }
-
-    /// <summary>
-    /// Transition from the boss's double slash attack to its charging slice attack.
-    /// </summary>
-    private void SlashToCharge()
-    {
-        FsmState? afterSlashState = null;
-        FsmState? sliceChargeAnticState = null;
-        foreach (var state in _control.FsmStates)
-        {
-            if (state.Name == "After Slash")
-            {
-                afterSlashState = state;
-            }
-            else if (state.Name == "Slice Charge Antic")
-            {
-                sliceChargeAnticState = state;
-            }
-        }
-
-        if (afterSlashState != null && sliceChargeAnticState != null)
-        {
-            afterSlashState.Transitions = new FsmTransition[] {
-                new FsmTransition {
-                    toFsmState = sliceChargeAnticState,
-                    toState = afterSlashState.Name,
-                    FsmEvent = FsmEvent.Finished
-                }
-            };
-        }
-    }
-
-    /// <summary>
-    /// Increase the speed of the charging slice attack.
-    /// </summary>
-    private void IncreaseChargeSliceSpeed()
-    {
-        var sliceChargeState = _control.FsmStates.First(state => state.Name == "Slice Charge");
-        var sliceChargeActions = sliceChargeState.Actions;
-        if (sliceChargeActions[1] is SetVelocityByScale setVelocity)
-        {
-            setVelocity.speed = -12;
-        }
-
-        if (sliceChargeActions[2] is AccelerateToXByScale accelerateToX)
-        {
-            accelerateToX.accelerationFactor = 0.65f;
-            accelerateToX.targetSpeed = 40;
-        }
-
-        if (sliceChargeActions[6] is Wait wait)
-        {
-            wait.time = 1f;
-        }
-    }
-
-    /// <summary>
-    /// Increase the firing speed of pins in phase 2 of the boss fight. 
-    /// </summary>
-    private void SpeedUpPhase2Pins()
-    {
-        foreach (var pinFsm in FindObjectsByType<PlayMakerFSM>(FindObjectsSortMode.None)
-                     .Where(fsm => fsm.name.Contains("FW Pin Projectile")))
-        {
-            var fireState = pinFsm.FsmStates.First(state => state.Name == "Fire");
-            var setVelAction = fireState.Actions.First(action => action is SetVelocityAsAngle) as SetVelocityAsAngle;
-            setVelAction!.speed = 18;
-
-            var threadPullState = pinFsm.FsmStates.First(state => state.Name == "Thread Pull");
-            if (threadPullState.Actions[3] is Wait wait)
-            {
-                wait.time = 4f;
-            }
-        }
-    }
-
-    /// <summary>
-    /// Perform the new abyss vomit glob attack.
-    /// </summary>
-
-    /// <summary>
-    /// Face the player.
-    /// </summary>
-    private void FaceHero()
-    {
-        if (_heroTransform.position.x > transform.position.x && transform.localScale.x > 0 ||
-            _heroTransform.position.x < transform.position.x && transform.localScale.x < 0)
-        {
-            Vector3 scale = transform.localScale;
-            scale.x *= -1;
-            transform.localScale = scale;
-        }
+        // var SpikeDamage = AssetManager.Get<GameObject>("Spike Collider");
+        // if (SpikeDamage == null)
+        // {
+        //     Log.Error("未能找到伤害刺的gameobject Spike Damage Prefab not found.");
+        //     yield break;
+        // }
+        // else
+        // {
+        //     // 实例化游戏对象并设置位置
+        //     Instantiate(SpikeDamage, spawnPosition1, spawnRotation);
+        //     Instantiate(SpikeDamage, spawnPosition2, spawnRotation);
+        //     Log.Info("已生成刺伤害.");
+        // }
+        // var spikesWallPict = AssetManager.Get<GameObject>("wall");
+        // if (spikesWallPict == null)
+        // {
+        //     Log.Error("未能找到单个刺贴图墙的gameobject.");
+        //     yield break;
+        // }
+        // else
+        // {
+        //     Instantiate(spikesWallPict, spawnPosition1, spawnRotation);
+        //     Instantiate(spikesWallPict, spawnPosition2, spawnRotation);
+        //     Log.Info("已生成刺贴图墙.");
+        // }
+        yield return null;
     }
 }

@@ -23,12 +23,15 @@ internal static class GodDancePatches
         {
             Log.Info("Modifying Dance，获取到A控制器");
             __instance.gameObject.AddComponent<singleGodDance>();
+            __instance.gameObject.AddComponent<Behaviours.GodDance>();
+
         }
         else if (__instance.name == "Dancer B" && __instance.FsmName == "Control" &&
             __instance.gameObject.layer == LayerMask.NameToLayer("Enemies"))
         {
             Log.Info("Modifying Dance，获取到B控制器");
             __instance.gameObject.AddComponent<singleGodDance>();
+
         }
         // else if (__instance.name == "Dancer A" && __instance.FsmName == "Check Height" &&
         //     __instance.gameObject.layer == LayerMask.NameToLayer("Enemies"))
@@ -41,28 +44,6 @@ internal static class GodDancePatches
         // }
 
     }
-    internal class changeHight : MonoBehaviour
-    {
-        private void Start()
-        {
-            var _control = gameObject.LocateMyFSM("Check Height");
-            var initStateVar = _control.FsmVariables?.GetFsmFloat("Top Row Pos");
-            if (initStateVar != null)
-            {
-                initStateVar.Value += 50f;
-            }
-            var initState = _control.FsmStates.FirstOrDefault(x => x.Name == "Top Row");
-            if (initState != null)
-            {
-                foreach (var action in initState.Actions)
-                {
-                    if (action is SetBoolValue setBoolValue)
-                    {
-                        setBoolValue.boolValue = false;
-                    }
-                }
-            }
-        }
-    }
+    
 }
 
