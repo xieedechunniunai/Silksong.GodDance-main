@@ -32,13 +32,13 @@ internal static class AssetManager
         // "Lost Lace Ground Tendril",
         // "Spike Collider",
         // "Dust Hit Wall",
-        "Attack",
-        "Collider",
-        "Hit",
-        "Spike",
-        "SpikeCollider",
-        "Broken Cog Spike Collider",
-        "cog_dancer_flash_impact",
+        // "Attack",
+        // "Collider",
+        // "Hit",
+        // "Spike",
+        // "SpikeCollider",
+        // "Broken Cog Spike Collider",
+        // "cog_dancer_flash_impact",
         "cog_dancer_blade_sphere"
     };
 
@@ -46,9 +46,115 @@ internal static class AssetManager
 
     private static bool _initialized;
     static readonly object _lockObject = new object();
+    private static bool _resourcesPersistent = false;
     /// <summary>
     /// Load all desired assets from loaded asset bundles.
     /// </summary>
+    /// RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.AfterSceneLoad)]
+    private static void Awake()
+    {
+        SceneManager.activeSceneChanged += OnActiveSceneChanged;
+        // 初始初始化
+        GameManager.instance.StartCoroutine(Initialize());
+    }
+
+    private static void OnActiveSceneChanged(Scene previousScene, Scene newScene)
+    {
+        Log.Info($"场景切换: {previousScene.name} -> {newScene.name}");
+
+        if (newScene.name == "Cog_Dancers" || newScene.name == "Cog_Dancers_boss")
+        {
+            Log.Info("切换到Boss场景，验证资源状态");
+            GameManager.instance.StartCoroutine(RevalidateResources());
+        }
+    }
+
+    private static IEnumerator RevalidateResources()
+    {
+        Log.Info("重新验证资源状态...");
+
+        // 清理所有已失效的引用
+        int removedCount = CleanupNullReferences();
+        Log.Info($"清理了 {removedCount} 个失效资源引用");
+
+        // 检查必需资源是否可用
+        if (!AreRequiredAssetsAvailable())
+        {
+            Log.Warn("必需资源不可用，重新初始化资源管理器");
+            yield return Reinitialize();
+        }
+        else
+        {
+            Log.Info("所有必需资源可用");
+        }
+    }
+
+    private static IEnumerator Reinitialize()
+    {
+        lock (_lockObject)
+        {
+            _initialized = false;
+        }
+
+        // 清理所有资源
+        ClearAllAssets();
+
+        yield return Initialize();
+    }
+
+    private static int CleanupNullReferences()
+    {
+        int removedCount = 0;
+        var typesToRemove = new List<Type>();
+
+        foreach (var typeDict in Assets)
+        {
+            var keysToRemove = new List<string>();
+
+            foreach (var kvp in typeDict.Value)
+            {
+                // 检查 WeakReference 是否还活着，或者目标是否为 null
+                if ( kvp.Value == null)
+                {
+                    keysToRemove.Add(kvp.Key);
+                    removedCount++;
+                }
+            }
+
+            // 移除失效的键
+            foreach (var key in keysToRemove)
+            {
+                typeDict.Value.Remove(key);
+            }
+
+            // 如果该类型的字典为空，标记为待移除
+            if (typeDict.Value.Count == 0)
+            {
+                typesToRemove.Add(typeDict.Key);
+            }
+        }
+
+        // 移除空字典
+        foreach (var type in typesToRemove)
+        {
+            Assets.Remove(type);
+        }
+
+        return removedCount;
+    }
+    private static bool AreRequiredAssetsAvailable()
+    {
+        foreach (var requiredAsset in _assetNames)
+        {
+            var asset = GetInternal<GameObject>(requiredAsset);
+            if (asset == null)
+            {
+                Log.Warn($"必需资源 '{requiredAsset}' 不可用");
+                return false;
+            }
+        }
+        return true;
+    }
     internal static IEnumerator Initialize()
     {
         if (_initialized)
@@ -57,33 +163,57 @@ internal static class AssetManager
         }
         lock (_lockObject) // 添加一个static readonly object _lockObject = new object();
         {
-            if (_initialized)
-            {
-                yield break;
-            }
-
+            if (_initialized) yield break;
             _initialized = true;
-            
-            var loadedBundles = AssetBundle.GetAllLoadedAssetBundles();
-            foreach (var bundle in loadedBundles)
+        }
+        // var loadedBundles = AssetBundle.GetAllLoadedAssetBundles();
+        // foreach (var bundle in loadedBundles)
+        // {
+        //     if (bundle != null)
+        //     {
+        //         ProcessBundleAssets(bundle);
+        //     }
+        // }
+        // // 如果某些必需的资产没有找到，再考虑手动加载
+        // if (!AreRequiredAssetsLoaded())
+        // {
+        //     yield return ManuallyLoadBundles();
+        //     // 重新处理新加载的bundles
+        //     foreach (var bundle in _manuallyLoadedBundles)
+        //     {
+        //         ProcessBundleAssets(bundle);
+        //     }
+        // }
+        // 清空现有资源（如果有）
+        Log.Info("开始初始化资源管理器...");
+
+        // 清空现有资源
+        ClearAllAssets();
+
+        var loadedBundles = AssetBundle.GetAllLoadedAssetBundles().ToList();
+        Log.Info($"发现 {loadedBundles.Count} 个已加载的 AssetBundle");
+
+        foreach (var bundle in loadedBundles)
+        {
+            if (bundle != null)
             {
-                if (bundle != null)
-                {
-                    ProcessBundleAssets(bundle);
-                }
-            }
-            // 如果某些必需的资产没有找到，再考虑手动加载
-            if (!AreRequiredAssetsLoaded())
-            {
-                yield return ManuallyLoadBundles();
-                // 重新处理新加载的bundles
-                foreach (var bundle in _manuallyLoadedBundles)
-                {
-                    ProcessBundleAssets(bundle);
-                }
+                ProcessBundleAssets(bundle);
             }
         }
+
+        // 如果必需的资产没有找到，手动加载
+        if (!AreRequiredAssetsLoaded())
+        {
+            Log.Info("必需资源未找到，开始手动加载 AssetBundle...");
+            yield return ManuallyLoadBundles();
+        }
+
+        Log.Info($"资源管理器初始化完成，加载了 {Assets.Values.Sum(dict => dict.Count)} 个资源");
+
+        // 调试输出所有加载的资源
+        //DebugAllLoadedAssets();
     }
+
     private static bool AreRequiredAssetsLoaded()
     {
         Log.Info("Checking if all required assets are loaded...");
@@ -115,68 +245,64 @@ internal static class AssetManager
     }
     private static void ProcessBundleAssets(AssetBundle bundle)
     {
-        if (bundle == null)
-        {
-            Log.Warn("Encountered null bundle in loaded bundles list");
-            return;
-        }
+        if (bundle == null) return;
 
-        var assetPaths = bundle.GetAllAssetNames();
-        if (assetPaths == null || assetPaths.Length == 0)
+        try
         {
-            Log.Warn($"Bundle '{bundle.name}' has no assets or failed to get asset names");
-            return;
-        }
-        Log.Info($"Processing bundle '{bundle.name}' with {assetPaths.Length} assets");
-        foreach (var assetPath in assetPaths)
-        {
-            string assetName = Path.GetFileNameWithoutExtension(assetPath);// 改进匹配：支持部分匹配和大小写不敏感
-            bool isMatch = _assetNames.Any(name =>
-                assetName.IndexOf(name, StringComparison.OrdinalIgnoreCase) >= 0);
+            var assetPaths = bundle.GetAllAssetNames();
+            if (assetPaths == null || assetPaths.Length == 0) return;
 
-            if (isMatch)
+            Log.Info($"处理 Bundle '{bundle.name}'，包含 {assetPaths.Length} 个资源");
+
+            foreach (var assetPath in assetPaths)
             {
-                // 使用同步加载方式
-                try
+                string assetName = Path.GetFileNameWithoutExtension(assetPath);
+
+                if (_assetNames.Any(name =>
+                    assetName.IndexOf(name, StringComparison.OrdinalIgnoreCase) >= 0))
                 {
-                    var loadedAsset = bundle.LoadAsset(assetPath);
-                    if (loadedAsset != null)
+                    try
                     {
-                        Type assetType = loadedAsset.GetType();
-                        string assetName1 = loadedAsset.name;
-
-                        if (!Assets.ContainsKey(assetType))
+                        var loadedAsset = bundle.LoadAsset(assetPath);
+                        if (loadedAsset != null)
                         {
-                            Assets.Add(assetType, new Dictionary<string, Object>());
-                        }
-
-                        var assetDict = Assets[assetType];
-                        if (assetDict.ContainsKey(assetName1))
-                        {
-                            if (assetDict[assetName1] == null)
-                            {
-                                Log.Info($"Key \"{assetName1}\" for sub-dictionary of type \"{assetType}\" exists, but its value is null; Replacing with new asset...");
-                                assetDict[assetName1] = loadedAsset;
-                            }
-                            else
-                            {
-                                Log.Warn($"There is already an asset \"{assetName1}\" of type \"{assetType}\"!");
-                            }
-                        }
-                        else
-                        {
-                            Log.Debug($"Adding asset {assetName1} of type {assetType}...");
-                            assetDict.Add(assetName1, loadedAsset);
+                            StoreAsset(loadedAsset);
                         }
                     }
-                }
-                catch (Exception e)
-                {
-                    Log.Error($"Failed to process asset {assetPath} from bundle {bundle.name}: {e}");
-                    continue;
+                    catch (Exception e)
+                    {
+                        Log.Error($"加载资源 {assetPath} 失败: {e}");
+                    }
                 }
             }
         }
+        catch (Exception e)
+        {
+            Log.Error($"处理 Bundle {bundle.name} 失败: {e}");
+        }
+    }
+
+    private static void StoreAsset(Object asset)
+    {
+        Type assetType = asset.GetType();
+        string assetName = asset.name;
+
+        if (!Assets.ContainsKey(assetType))
+        {
+            Assets[assetType] = new Dictionary<string, Object>();
+        }
+
+        var assetDict = Assets[assetType];
+
+        // 如果已存在，先移除旧引用
+        if (assetDict.ContainsKey(assetName))
+        {
+            assetDict.Remove(assetName);
+        }
+
+        // 使用强引用存储
+        assetDict[assetName] = asset;
+        Log.Debug($"存储资源: {assetName} ({assetType.Name})");
     }/// <summary>
      /// Manually load asset bundles.
      /// </summary>
@@ -227,86 +353,119 @@ internal static class AssetManager
         ProcessBundleAssets(bundle);
         _manuallyLoadedBundleNames.Add(bundleName);
     }
-    /// <summary>
-    /// Unload all saved assets.
-    /// </summary>
-    internal static void UnloadAll()
-    {
-        foreach (var assetDict in Assets.Values)
-        {
-            foreach (var asset in assetDict.Values)
-            {
-                Object.DestroyImmediate(asset);
-            }
-        }
 
-        Assets.Clear();
-        GC.Collect();
-    }
     internal static bool IsInitialized()
     {
         return _initialized;
     }
-    /// <summary>
-    /// Unload bundles that were manually loaded for this mod.
-    /// </summary>
-    internal static void UnloadManualBundles()
+// 修改Get方法，添加同步重试逻辑
+   internal static T Get<T>(string assetName) where T : Object
+{
+    var asset = GetInternal<T>(assetName);
+    
+    if (asset == null)
     {
-        foreach (var bundle in _manuallyLoadedBundles)
+        Log.Error($"资源 '{assetName}' ({typeof(T).Name}) 获取失败");
+        
+        // 同步重新加载资源
+        asset = SynchronousReload<T>(assetName);
+    }
+
+    return asset;
+}
+
+    private static IEnumerator RevalidateAndRecover(string assetName)
+    {
+        Log.Warn($"尝试恢复资源: {assetName}");
+        yield return RevalidateResources();
+
+        // 再次尝试获取
+        var recoveredAsset = GetInternal<GameObject>(assetName);
+        if (recoveredAsset != null)
         {
-            string bundleName = bundle.name;
-            var unloadBundleHandle = bundle.UnloadAsync(true);
-            unloadBundleHandle.completed += _ => { Log.Info($"Successfully unloaded bundle \"{bundleName}\""); };
+            Log.Info($"资源 {assetName} 恢复成功");
         }
-
-        _manuallyLoadedBundles.Clear();
-
-        foreach (var (_, obj) in Assets[typeof(GameObject)])
+        else
         {
-            if (obj is GameObject gameObject && gameObject.activeSelf)
-            {
-                Log.Info($"Recycling all instances of prefab \"{gameObject.name}\"");
-                gameObject.RecycleAll();
-            }
+            Log.Error($"资源 {assetName} 恢复失败");
         }
     }
 
-    /// <summary>
-    /// Fetch an asset.
-    /// </summary>
-    /// <param name="assetName">The name of the asset to fetch.</param>
-    /// <typeparam name="T">The type of asset to fetch.</typeparam>
-    /// <returns>The fetched object if it exists, otherwise returns null.</returns>
-    internal static T? Get<T>(string assetName) where T : Object
+    private static T GetInternal<T>(string assetName) where T : Object
     {
         Type assetType = typeof(T);
-        if (Assets.ContainsKey(assetType))
+
+        if (!Assets.ContainsKey(assetType))
         {
-            var subDict = Assets[assetType];
-            if (subDict != null)
+            Log.Error($"资源类型 {assetType.Name} 未注册");
+            return null;
+        }
+
+        var assetDict = Assets[assetType];
+
+        if (assetDict.ContainsKey(assetName))
+        {
+            var asset = assetDict[assetName] as T;
+            if (asset != null)
             {
-                // // 尝试查找包含该名称的资源
-                // var matchingKey = subDict.Keys.FirstOrDefault(k =>
-                //     k.IndexOf(assetName, StringComparison.OrdinalIgnoreCase) >= 0);
-
-                // if (matchingKey != null)
-                // {
-                //     return subDict[matchingKey] as T;
-                // }
-                if (subDict.ContainsKey(assetName)) {
-                    var assetObj = subDict[assetName];
-                    if (assetObj != null) {
-                        return assetObj as T;
-                    }
-
-                    Log.Error($"Failed to get asset \"{assetName}\"; asset is null!");
-                    return null;;
-                }
+                return asset;
+            }
+            else
+            {
+                // 资源存在但类型不匹配或为null，移除
+                assetDict.Remove(assetName);
+                Log.Warn($"资源 {assetName} 已失效，已从缓存移除");
             }
         }
 
-        Log.Error($"Could not find asset containing '{assetName}' of type '{assetType}'!");
         return null;
+    }
+    // 添加同步重载方法
+private static T SynchronousReload<T>(string assetName) where T : Object
+{
+    Log.Warn($"同步重新加载资源: {assetName}");
+    
+    // 尝试从已加载的AssetBundle中重新加载
+    foreach (var bundle in AssetBundle.GetAllLoadedAssetBundles())
+    {
+        if (bundle == null) continue;
+        
+        try
+        {
+            var assetPaths = bundle.GetAllAssetNames();
+            foreach (var assetPath in assetPaths)
+            {
+                string currentAssetName = Path.GetFileNameWithoutExtension(assetPath);
+                if (currentAssetName.Equals(assetName, StringComparison.OrdinalIgnoreCase))
+                {
+                    var loadedAsset = bundle.LoadAsset<T>(assetPath);
+                    if (loadedAsset != null)
+                    {
+                        StoreAsset(loadedAsset);
+                        Log.Info($"资源 {assetName} 重新加载成功");
+                        return loadedAsset;
+                    }
+                }
+            }
+        }
+        catch (Exception e)
+        {
+            Log.Error($"重新加载资源 {assetName} 失败: {e}");
+        }
+    }
+    
+    Log.Error($"无法重新加载资源 {assetName}");
+    return null;
+}
+    private static void ClearAllAssets()
+    {
+        Assets.Clear();
+        _manuallyLoadedBundleNames.Clear();
+
+        // 注意：不要销毁手动加载的 bundle，让 Unity 管理它们的生命周期
+        _manuallyLoadedBundles.Clear();
+
+        Log.Info("已清空所有资源缓存");
     }
     private static bool IsBundleAlreadyLoaded(string bundleName)
     {
@@ -369,19 +528,22 @@ internal static class AssetManager
         }
         return allNames;
     }
-    internal static IEnumerable<(string name, string type, Object asset)> GetAllAssetDetails()
-    {
-        var details = new List<(string, string, Object)>();
-        foreach (var typeDict in Assets)
-        {
-            string typeName = typeDict.Key.Name;
-            foreach (var assetEntry in typeDict.Value)
-            {
-                details.Add((assetEntry.Key, typeName, assetEntry.Value));
-            }
-        }
-        return details;
-    }
-    // 添加场景加载方法
 
+    // 添加场景加载方法
+    // private static void DebugAllLoadedAssets()
+    // {
+    //     Log.Info("=== 所有已加载资源 ===");
+    //     foreach (var typeDict in Assets)
+    //     {
+    //         int validCount = typeDict.Value.Count(kvp => kvp.Value.IsAlive && kvp.Value.Target != null);
+    //         Log.Info($"类型: {typeDict.Key.Name}, 数量: {validCount}/{typeDict.Value.Count}");
+
+    //         foreach (var asset in typeDict.Value)
+    //         {
+    //             object target = isAlive ? asset.Value.Target : null;
+    //             Log.Info($"  - {asset.Key} -> 存活: {isAlive}, 目标: {(target != null ? target.ToString() : "null")}");
+    //         }
+    //     }
+    //     Log.Info("=== 资源列表结束 ===");
+    // }
 }
