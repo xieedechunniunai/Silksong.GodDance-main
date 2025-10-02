@@ -25,17 +25,7 @@ internal class GodDance : MonoBehaviour
     private PlayMakerFSM _control = null!;
     private PlayMakerFSM _parentControl = null!;  // 添加父控制器引用
     private Transform _heroTransform = null!;
-    private GameObject _spikeMaster = null!;     // 添加spikeMaster引用
-    private GameObject _spikeTemplate;
-    private GameObject _spikeClone;
-    private GameObject _spikeClone2;
-
-    private GameObject _spikeClone3;
-    private GameObject _spikeClone4;
-    private GameObject _spikeClone5;
-    private GameObject spikes = null!;
     private int Phase = 1;                       // 添加Phase变量
-    private static bool _assetManagerInitialized = false;
     private bool flag = true;
     private bool flag2 = true;
     private void Awake()
@@ -49,14 +39,22 @@ internal class GodDance : MonoBehaviour
 
     private void Update()
     {
+        Phase = _parentControl.FsmVariables.GetFsmInt("Phase").value;
         if (flag2 && _parentControl != null)
         {
-            Phase = _parentControl.FsmVariables.GetFsmInt("Phase").value;
             if (Phase == 2)
             {
                 Log.Info("添加新攻击");
                 StartCoroutine(NewSpikeAttack());
                 flag2 = false;
+            }
+        }
+        if (flag && _control != null)
+        {
+            if (Phase == 3)
+            {
+                ModifyDivePhaseFlowForP3();
+                flag = false;
             }
         }
     }
@@ -72,27 +70,6 @@ internal class GodDance : MonoBehaviour
 
     private IEnumerator SetupBoss()
     {
-        // 只有第一个实例才加载AssetBundle
-        if (!AssetManager.IsInitialized())
-        {
-            if (!_assetManagerInitialized)
-            {
-                _assetManagerInitialized = true;
-                Log.Info($" 加载资源");
-                //yield return AssetManager.ManuallyLoadBundles();
-                yield return AssetManager.Initialize();
-            }
-        }
-        else
-        {
-            // 等待资源初始化完成
-            while (!AssetManager.IsInitialized())
-            {
-                Log.Info($" 等待资源初始化");
-                yield return null;
-            }
-        }
-
         GetComponents();
         ModifyParentFsm();  // 添加调用父控制器修改方法
         Log.Info($" 总控制修改完成");
@@ -134,7 +111,7 @@ internal class GodDance : MonoBehaviour
         {
             Log.Error("Init state not found in Control FSM.");
         }
-        this._spikeMaster = GameObject.Find("Spike Control");
+        // this._spikeMaster = GameObject.Find("Spike Control");
     }
 
     /// <summary>
@@ -168,21 +145,9 @@ internal class GodDance : MonoBehaviour
     /// </summary>
     private void IncreaseHealth()
     {
-        _parentControl.FsmVariables.GetFsmInt("Phase 1 HP").Value = 274;
-        var InitState = _parentControl.FsmStates.FirstOrDefault(state => state.name == "Init");
-        if (InitState != null)
-        {
-            foreach (var action in InitState.Actions)
-            {
-                if (action is SetHP setHP)
-                {
-                    setHP.hp =274;
-                }
-            }
-        }
         _parentControl.FsmVariables.GetFsmInt("Phase 2 HP").Value += 300;
         _parentControl.FsmVariables.GetFsmInt("Phase 3 HP").Value += 300;
-        _parentControl.FsmVariables.GetFsmInt("Phase 4 HP").Value = 1314;
+        _parentControl.FsmVariables.GetFsmInt("Phase 4 HP").Value = 84;
         Log.Info("机驱舞者加血成功Health increased.");
     }
 
@@ -210,7 +175,7 @@ internal class GodDance : MonoBehaviour
             {
                 if (action is SetFsmFloat setFsmFloat)
                 {
-                    setFsmFloat.setValue = 0.36f;
+                    setFsmFloat.setValue = 0.4f;
                 }
             }
         }
@@ -225,12 +190,7 @@ internal class GodDance : MonoBehaviour
             {
                 if (action is SetFsmFloat setFsmFloat)
                 {
-                    setFsmFloat.setValue = 0.15f;
-                }
-                if (action is SetHP SetHP)
-                {
-                    SetHP.hp.value += 100;
-                    break;
+                    setFsmFloat.setValue = 0.36f;
                 }
             }
         }
@@ -238,106 +198,67 @@ internal class GodDance : MonoBehaviour
 
     private IEnumerator NewSpikeAttack()
     {
-        // var allAssets = AssetManager.GetAllAssetDetails();
-        // foreach (var (name, type, asset) in allAssets)
-        // {
-        //     Log.Info($"Asset Name: {name}, Type: {type}, Instance: {asset}");
-        // }
         Vector3 spawnPosition1 = new Vector3(50, 11, 1); // 设置你想要的坐标
         Vector3 spawnPosition2 = new Vector3(10, 11, 1); // 设置你想要的坐标
         Quaternion spawnRotation = Quaternion.identity; // 设置你想要的旋转
-        // 先尝试从 AssetManager 获取 Spike Collider
-        // var spikeColliderPrefab = AssetManager.Get<GameObject>("Spike Collider");
-        // if (spikeColliderPrefab != null)
-        // {
-        //     // 实例化 AssetManager 中的预制体
-        //     Vector3 spawnPosition = new Vector3(50, 11, 1);
-        //     Instantiate(spikeColliderPrefab, spawnPosition, Quaternion.identity);
-        //     Log.Info("从 AssetManager 实例化 Spike Collider 成功");
-        // }
-        // else
-        // {
-        //     // 如果 AssetManager 中没有，则从场景中查找并复制
-        //     GameObject spikeColliderInstance = GameObject.Find("Spike Collider");
-        //     if (spikeColliderInstance != null)
-        //     {
-        //         // 实例化场景中的对象
-        //         Vector3 spawnPosition = spawnPosition1;
-        //         Instantiate(spikeColliderInstance, spawnPosition, Quaternion.identity);
-        //         Log.Info("从场景中实例化 Spike Collider 成功");
-        //     }
-        //     else
-        //     {
-        //         Log.Error("未能在场景中找到 Spike Collider");
-        //     }
-        // }
-        // var spikesPict2 = AssetManager.Get<GameObject>("cog_dancer_blade_sphere");
-        // if (spikesPict2 == null)
-        // {
-        //     Log.Error("未能找到单个刺贴图的gameobject.");
-        //     yield break;
-        // }
-        // else
-        // {
-        //     Instantiate(spikesPict2, spawnPosition1, spawnRotation);
-        //     Instantiate(spikesPict2, spawnPosition2, spawnRotation);
-        //     Log.Info("已实例化刺.");
-        // }
-        _spikeTemplate = AssetManager.Get<GameObject>("cog_dancer_flash_impact");
-        if (_spikeTemplate == null)
-        {
-            Log.Error("未能找到模板刺的gameobject.");
-            yield break;
-        }
-        else
-        {
-            this._spikeClone = UnityObject.Instantiate<GameObject>(this._spikeTemplate);
-            Extensions.SetPositionX(this._spikeClone.transform, 50);
-            Extensions.SetPositionY(this._spikeClone.transform, 11);
-            this._spikeClone2 = UnityObject.Instantiate<GameObject>(this._spikeTemplate);
-            Extensions.SetPositionX(this._spikeClone2.transform, 50.5f);
-            Extensions.SetPositionY(this._spikeClone2.transform, 11);
-            this._spikeClone3 = UnityObject.Instantiate<GameObject>(this._spikeTemplate);
-            Extensions.SetPositionX(this._spikeClone3.transform, 51f);
-            Extensions.SetPositionY(this._spikeClone3.transform, 11);
-            this._spikeClone4 = UnityObject.Instantiate<GameObject>(this._spikeTemplate);
-            Extensions.SetPositionX(this._spikeClone4.transform, 51.5f);
-            Extensions.SetPositionY(this._spikeClone4.transform, 11);
-            this._spikeClone5 = UnityObject.Instantiate<GameObject>(this._spikeTemplate);
-            Extensions.SetPositionX(this._spikeClone5.transform, 52f);
-            Extensions.SetPositionY(this._spikeClone5.transform, 11);
-            Instantiate(this._spikeClone, spawnPosition1, spawnRotation);
-            Instantiate(this._spikeClone2, spawnPosition1, spawnRotation);
-            Instantiate(this._spikeClone3, spawnPosition1, spawnRotation);
-            Instantiate(this._spikeClone4, spawnPosition1, spawnRotation);
-            Instantiate(this._spikeClone5, spawnPosition1, spawnRotation);
-            Log.Info("已实例化一堆刺.");
-        }
-        // var SpikeDamage = AssetManager.Get<GameObject>("Spike Collider");
-        // if (SpikeDamage == null)
-        // {
-        //     Log.Error("未能找到伤害刺的gameobject Spike Damage Prefab not found.");
-        //     yield break;
-        // }
-        // else
-        // {
-        //     // 实例化游戏对象并设置位置
-        //     Instantiate(SpikeDamage, spawnPosition1, spawnRotation);
-        //     Instantiate(SpikeDamage, spawnPosition2, spawnRotation);
-        //     Log.Info("已生成刺伤害.");
-        // }
-        // var spikesWallPict = AssetManager.Get<GameObject>("wall");
-        // if (spikesWallPict == null)
-        // {
-        //     Log.Error("未能找到单个刺贴图墙的gameobject.");
-        //     yield break;
-        // }
-        // else
-        // {
-        //     Instantiate(spikesWallPict, spawnPosition1, spawnRotation);
-        //     Instantiate(spikesWallPict, spawnPosition2, spawnRotation);
-        //     Log.Info("已生成刺贴图墙.");
-        // }
         yield return null;
     }
+    private void ModifyDivePhaseFlowForP3()
+    {
+        try
+        {
+            Log.Info("P3阶段：修改合体技能第二个技能流程，将BEAT事件跳转改为FINISHED事件跳转");
+
+            // 修改Dive Pattern 2状态：FINISHED事件跳转到Diving 2状态
+            var divePattern2State = _parentControl.FsmStates.FirstOrDefault(state => state.Name == "Dive Pattern 2");
+            if (divePattern2State != null)
+            {
+                var actions = divePattern2State.Actions.ToList();
+                var target =new FsmEventTarget();
+                foreach (var action in actions)
+                {
+                    if (action is SendEventByName sendEventByName)
+                    {
+                        target = sendEventByName.eventTarget;
+                        break;
+                    }
+                }
+                actions.Add(new SendEventByName
+                {
+                    eventTarget = target,
+                    sendEvent = "ATTACK",
+                    delay = 0.3f,
+                    everyFrame = false
+                });
+                divePattern2State.Actions = actions.ToArray();
+                // 查找BEAT事件过渡并改为FINISHED事件
+                // var beatTransition = divePattern2State.Transitions.FirstOrDefault(t => t.FsmEvent.Name == "BEAT");
+                // if (beatTransition != null && beatTransition.toState == "Diving 2")
+                // {
+                //     beatTransition.FsmEvent = FsmEvent.Finished;
+                //     Log.Info("已将Dive Pattern 2状态的BEAT事件跳转改为FINISHED事件跳转到Diving 2");
+                // }
+            }
+
+            // 修改Diving 2状态：FINISHED事件跳转到Diving 3状态
+            var diving2State = _parentControl.FsmStates.FirstOrDefault(state => state.Name == "Diving 2");
+            if (diving2State != null)
+            {
+                // 查找BEAT事件过渡并改为FINISHED事件
+                var beatTransition = diving2State.Transitions.FirstOrDefault(t => t.FsmEvent.Name == "BEAT");
+                if (beatTransition != null && beatTransition.toState == "Diving 3")
+                {
+                    beatTransition.FsmEvent = FsmEvent.Finished;
+                    Log.Info("已将Diving 2状态的BEAT事件跳转改为FINISHED事件跳转到Diving 3");
+                }
+            }
+
+            Log.Info("P3阶段合体技能第二个技能流程修改完成：所有BEAT事件跳转已改为FINISHED事件跳转");
+        }
+        catch (System.Exception ex)
+        {
+            Log.Error($"修改合体技能流程时出错: {ex.Message}");
+        }
+    }
+
 }
