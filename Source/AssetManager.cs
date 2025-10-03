@@ -252,7 +252,7 @@ internal static class AssetManager
             var assetPaths = bundle.GetAllAssetNames();
             if (assetPaths == null || assetPaths.Length == 0) return;
 
-            Log.Info($"处理 Bundle '{bundle.name}'，包含 {assetPaths.Length} 个资源");
+            //Log.Info($"处理 Bundle '{bundle.name}'，包含 {assetPaths.Length} 个资源");
 
             foreach (var assetPath in assetPaths)
             {

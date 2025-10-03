@@ -39,7 +39,11 @@ internal class GodDance : MonoBehaviour
 
     private void Update()
     {
-        Phase = _parentControl.FsmVariables.GetFsmInt("Phase").value;
+        if (_parentControl != null)
+        {
+            Phase = _parentControl.FsmVariables.GetFsmInt("Phase").value;
+        }
+
         if (flag2 && _parentControl != null)
         {
             if (Phase == 2)
@@ -214,7 +218,7 @@ internal class GodDance : MonoBehaviour
             if (divePattern2State != null)
             {
                 var actions = divePattern2State.Actions.ToList();
-                var target =new FsmEventTarget();
+                var target = new FsmEventTarget();
                 foreach (var action in actions)
                 {
                     if (action is SendEventByName sendEventByName)
