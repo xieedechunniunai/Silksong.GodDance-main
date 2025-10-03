@@ -20,7 +20,7 @@
         <!--These properties will control the generated PluginInfo. Version is also used by various parts of the build system.-->
         <BepInExPluginGuid>GodDance</BepInExPluginGuid>
         <BepInExPluginName>GodDance</BepInExPluginName>
-        <Version>0.0.0</Version>
+        <Version>0.0.1</Version>
     </PropertyGroup>
 
     <ItemGroup>
@@ -33,6 +33,7 @@
 
     <ItemGroup>
         <EmbeddedResource Include="Assets/*.png"/>
+        <EmbeddedResource Include="Assets/*.dat"/>
     </ItemGroup>
 
     <ItemGroup>
