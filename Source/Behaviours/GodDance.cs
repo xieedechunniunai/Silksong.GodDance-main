@@ -8,6 +8,9 @@ using GlobalEnums;
 using HutongGames.PlayMaker;
 using HutongGames.PlayMaker.Actions;
 using UnityObject = UnityEngine.Object;
+using HazardType = GlobalEnums.HazardType;
+
+
 namespace GodDance.Source.Behaviours;
 
 /// <summary>
@@ -199,12 +202,107 @@ internal class GodDance : MonoBehaviour
             }
         }
     }
-
     private IEnumerator NewSpikeAttack()
     {
-        Vector3 spawnPosition1 = new Vector3(50, 11, 1); // 设置你想要的坐标
-        Vector3 spawnPosition2 = new Vector3(10, 11, 1); // 设置你想要的坐标
-        Quaternion spawnRotation = Quaternion.identity; // 设置你想要的旋转
+        Log.Info("开始创建P2阶段的伤害性GameObject");
+
+        // 确保_control.gameObject存在
+        if (_control.gameObject == null)
+        {
+            Log.Error("Control GameObject is null.");
+            yield break;
+        }
+        var DamageHerox = _control.gameObject.GetComponent<DamageHero>();
+        if (DamageHerox == null)
+        {
+            Log.Error("DamageHero component not found on Control GameObject.");
+            yield break;
+        }
+
+        // 创建第一个伤害性GameObject在坐标(52, 10, 1)
+        Vector3 spawnPosition1 = new Vector3(53.4f, 10f, 1f);
+        GameObject damageObject1 = new GameObject("P2_DamageZone_1");
+        damageObject1.transform.position = spawnPosition1;
+        damageObject1.layer = LayerMask.NameToLayer("Attack");
+
+        // 添加Rigidbody2D组件用于物理检测
+        Rigidbody2D rb1 = damageObject1.AddComponent<Rigidbody2D>();
+        rb1.simulated = true;
+        rb1.bodyType = RigidbodyType2D.Kinematic;
+
+        // 添加BoxCollider2D组件并设置尺寸（宽度2，高度15）
+        BoxCollider2D collider1 = damageObject1.AddComponent<BoxCollider2D>();
+        collider1.size = new Vector2(1f, 15f);
+        collider1.isTrigger = true;
+        DamageHero damageHero1 = damageObject1.AddComponent<DamageHero>();
+        damageHero1.SetDamageAmount(1);
+        damageHero1.damageDealt = 1;
+        damageHero1.hazardType = HazardType.ENEMY;
+        damageHero1.overrideCollisionSide = true;
+        damageHero1.collisionSide = CollisionSide.top;
+        damageHero1.canClashTink = true;
+        damageHero1.noClashFreeze = true;
+        damageHero1.noTerrainThunk = true;
+        damageHero1.noTerrainRecoil = true;
+        damageHero1.OnDamagedHero = DamageHerox.OnDamagedHero;
+
+        // 添加渲染器用于调试显示
+        var renderer1 = damageObject1.AddComponent<SpriteRenderer>();
+        // renderer1.color = new Color(1f, 0f, 0f, 0.3f);
+        var gradientTexture = CreateGradientTexture(64, 64);
+        renderer1.sprite = Sprite.Create(
+            gradientTexture,
+            new Rect(0, 0, 0.1f, 3),
+            new Vector2(0.5f, 0.5f),
+            0.25f
+        );
+        renderer1.drawMode = SpriteDrawMode.Simple;
+        renderer1.size = collider1.size;
+
+        Log.Info($"第一个伤害区域创建在位置: {spawnPosition1}");
+
+        Vector3 spawnPosition2 = new Vector3(26.54f, 10f, 1f);
+        GameObject damageObject2 = new GameObject("P2_DamageZone_2");
+        damageObject2.transform.position = spawnPosition2;
+        damageObject2.layer = LayerMask.NameToLayer("Attack");
+
+        // 添加Rigidbody2D组件用于物理检测
+        Rigidbody2D rb2 = damageObject2.AddComponent<Rigidbody2D>();
+        rb2.simulated = true;
+        rb2.bodyType = RigidbodyType2D.Kinematic;
+
+        // 添加BoxCollider2D组件并设置尺寸（宽度2，高度15）
+        BoxCollider2D collider2 = damageObject2.AddComponent<BoxCollider2D>();
+        collider2.size = new Vector2(1f, 15f);
+        collider2.isTrigger = true;
+
+        // 添加DamageHero组件并正确配置
+        DamageHero damageHero2 = damageObject2.AddComponent<DamageHero>();
+        damageHero2.damageDealt = 1;
+        damageHero2.hazardType = HazardType.ENEMY;
+        damageHero2.overrideCollisionSide = true;
+        damageHero2.collisionSide = CollisionSide.top;
+        damageHero2.canClashTink = true;
+        damageHero2.noClashFreeze = true;
+        damageHero2.noTerrainThunk = true;
+        damageHero2.noTerrainRecoil = true;
+        damageHero2.OnDamagedHero = DamageHerox.OnDamagedHero;
+
+        // 添加渲染器用于调试显示
+        var renderer2 = damageObject2.AddComponent<SpriteRenderer>();
+        renderer2.color = new Color(0.92f, 0.45f, 0.05f, 0.75f);
+        renderer2.sprite = Sprite.Create(
+            gradientTexture,
+            new Rect(0, 0, 0.1f, 3),
+            new Vector2(0.5f, 0.5f),
+            0.25f
+        );
+        renderer2.drawMode = SpriteDrawMode.Simple;
+        renderer2.size = collider2.size;
+
+        Log.Info($"第二个伤害区域创建在位置: {spawnPosition2}");
+        Log.Info("P2阶段伤害性GameObject创建完成");
+
         yield return null;
     }
     private void ModifyDivePhaseFlowForP3()
@@ -264,5 +362,25 @@ internal class GodDance : MonoBehaviour
             Log.Error($"修改合体技能流程时出错: {ex.Message}");
         }
     }
+    // 创建线性渐变纹理
+    private Texture2D CreateGradientTexture(int width, int height)
+    {
+        Texture2D texture = new Texture2D(width, height, TextureFormat.RGBA32, false);
+        Color[] colors = new Color[width * height];
 
+        for (int i = 0; i < width; i++)
+        {
+            float t = (float)i / width;
+            // 从白色到红金色的渐变
+            Color color = Color.Lerp(Color.white, new Color(1f, 0.45f, 0.05f, 1f), t);
+            for (int j = 0; j < height; j++)
+            {
+                colors[i + j * width] = color;
+            }
+        }
+
+        texture.SetPixels(colors);
+        texture.Apply();
+        return texture;
+    }
 }

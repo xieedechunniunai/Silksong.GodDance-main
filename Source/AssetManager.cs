@@ -114,7 +114,7 @@ internal static class AssetManager
             foreach (var kvp in typeDict.Value)
             {
                 // 检查 WeakReference 是否还活着，或者目标是否为 null
-                if ( kvp.Value == null)
+                if (kvp.Value == null)
                 {
                     keysToRemove.Add(kvp.Key);
                     removedCount++;
@@ -358,21 +358,21 @@ internal static class AssetManager
     {
         return _initialized;
     }
-// 修改Get方法，添加同步重试逻辑
-   internal static T Get<T>(string assetName) where T : Object
-{
-    var asset = GetInternal<T>(assetName);
-    
-    if (asset == null)
+    // 修改Get方法，添加同步重试逻辑
+    internal static T Get<T>(string assetName) where T : Object
     {
-        Log.Error($"资源 '{assetName}' ({typeof(T).Name}) 获取失败");
-        
-        // 同步重新加载资源
-        asset = SynchronousReload<T>(assetName);
-    }
+        var asset = GetInternal<T>(assetName);
 
-    return asset;
-}
+        if (asset == null)
+        {
+            Log.Error($"资源 '{assetName}' ({typeof(T).Name}) 获取失败");
+
+            // 同步重新加载资源
+            asset = SynchronousReload<T>(assetName);
+        }
+
+        return asset;
+    }
 
     private static IEnumerator RevalidateAndRecover(string assetName)
     {
@@ -421,42 +421,42 @@ internal static class AssetManager
         return null;
     }
     // 添加同步重载方法
-private static T SynchronousReload<T>(string assetName) where T : Object
-{
-    Log.Warn($"同步重新加载资源: {assetName}");
-    
-    // 尝试从已加载的AssetBundle中重新加载
-    foreach (var bundle in AssetBundle.GetAllLoadedAssetBundles())
+    private static T SynchronousReload<T>(string assetName) where T : Object
     {
-        if (bundle == null) continue;
-        
-        try
+        Log.Warn($"同步重新加载资源: {assetName}");
+
+        // 尝试从已加载的AssetBundle中重新加载
+        foreach (var bundle in AssetBundle.GetAllLoadedAssetBundles())
         {
-            var assetPaths = bundle.GetAllAssetNames();
-            foreach (var assetPath in assetPaths)
+            if (bundle == null) continue;
+
+            try
             {
-                string currentAssetName = Path.GetFileNameWithoutExtension(assetPath);
-                if (currentAssetName.Equals(assetName, StringComparison.OrdinalIgnoreCase))
+                var assetPaths = bundle.GetAllAssetNames();
+                foreach (var assetPath in assetPaths)
                 {
-                    var loadedAsset = bundle.LoadAsset<T>(assetPath);
-                    if (loadedAsset != null)
+                    string currentAssetName = Path.GetFileNameWithoutExtension(assetPath);
+                    if (currentAssetName.Equals(assetName, StringComparison.OrdinalIgnoreCase))
                     {
-                        StoreAsset(loadedAsset);
-                        Log.Info($"资源 {assetName} 重新加载成功");
-                        return loadedAsset;
+                        var loadedAsset = bundle.LoadAsset<T>(assetPath);
+                        if (loadedAsset != null)
+                        {
+                            StoreAsset(loadedAsset);
+                            Log.Info($"资源 {assetName} 重新加载成功");
+                            return loadedAsset;
+                        }
                     }
                 }
             }
+            catch (Exception e)
+            {
+                Log.Error($"重新加载资源 {assetName} 失败: {e}");
+            }
         }
-        catch (Exception e)
-        {
-            Log.Error($"重新加载资源 {assetName} 失败: {e}");
-        }
+
+        Log.Error($"无法重新加载资源 {assetName}");
+        return null;
     }
-    
-    Log.Error($"无法重新加载资源 {assetName}");
-    return null;
-}
     private static void ClearAllAssets()
     {
         Assets.Clear();
@@ -546,4 +546,14 @@ private static T SynchronousReload<T>(string assetName) where T : Object
     //     }
     //     Log.Info("=== 资源列表结束 ===");
     // }
+        internal static void UnloadAll() {
+        foreach (var assetDict in Assets.Values) {
+            foreach (var asset in assetDict.Values) {
+                Object.DestroyImmediate(asset);
+            }
+        }
+
+        Assets.Clear();
+        GC.Collect();
+    }
 }

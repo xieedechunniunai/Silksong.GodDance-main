@@ -747,7 +747,7 @@ internal class singleGodDance : MonoBehaviour
                         }
 
                         // 设置为红色调
-                        renderer.material.color = new Color(1.0f, 0.3f, 0.3f, renderer.material.color.a);
+                        renderer.material.color = new Color(0.92f, 0.45f, 0.05f, renderer.material.color.a);
                         Log.Info($"修改材质颜色: {renderer.gameObject.name}");
                     }
                     catch (System.Exception ex)
