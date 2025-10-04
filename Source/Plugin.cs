@@ -104,5 +104,6 @@ public class Plugin : BaseUnityPlugin
     private void OnDestroy()
     {
         _harmony.UnpatchSelf();
+        AssetManager.UnloadAll();
     }
 }

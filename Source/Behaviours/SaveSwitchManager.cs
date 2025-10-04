@@ -31,7 +31,12 @@ namespace GodDance.Source.Behaviours
         private const float TARGET_POS_Z = 0.0f;
         // 当前选择的存档槽编号
         private int _currentSelectedSlot = 1;
-
+        // 音频检测相关字段
+        private AudioSource _needolinAudioSource;
+        private float _audioPlayingTimer = 0f;
+        private const float REQUIRED_PLAYING_TIME = 3f; // 需要连续播放3秒
+        private bool _isCheckingAudio = false;
+        private bool _hasSwitchedThisSession = false; // 防止重复切换
 
         private void Awake()
         {// 设置单例实例
@@ -60,8 +65,14 @@ namespace GodDance.Source.Behaviours
             Plugin.IsInCogDancersRoom = newScene.name == "Cog_Dancers" || newScene.name == "Cog_Dancers_boss";
 
             if (Plugin.IsInCogDancersRoom)
-            {
+            {// 重置音频检测状态
+                _hasSwitchedThisSession = false;
+                _isCheckingAudio = false;
+                _audioPlayingTimer = 0f;
                 Log.Info($"进入机驱舞者房间: {newScene.name}");
+
+                // 启动音频检测设置
+                StartCoroutine(SetupAudioDetection());
             }
             else
             {
@@ -71,6 +82,8 @@ namespace GodDance.Source.Behaviours
                 {
                     Log.Info($"离开BOSS场景，开始恢复原存档");
                     StartCoroutine(RestoreOriginalSaveOnSceneChange());
+                    // 重新加载存档
+                    StartCoroutine(LoadSaveGame());
                 }
                 // 如果切换到主菜单场景且BOSS存档已加载，恢复原存档
                 if (newScene.name == "Menu_Title" && Plugin.IsBossSaveLoaded)
@@ -91,10 +104,107 @@ namespace GodDance.Source.Behaviours
         private void Update()
         {
             // 检查是否在Cog_Dancers房间且按下D键
-            if (Plugin.IsInCogDancersRoom && Input.GetKeyDown(KeyCode.D))
+            if (Plugin.IsInCogDancersRoom && _isCheckingAudio && !_hasSwitchedThisSession)
             {
-                Log.Info("检测到D键按下，开始切换存档");
-                StartCoroutine(SwitchSaveFile());
+                // Log.Info("检测到D键按下，开始切换存档");
+                // StartCoroutine(SwitchSaveFile());
+                CheckAudioPlayingStatus();
+            }
+        }
+        /// <summary>
+        /// 设置音频检测
+        /// </summary>
+        private IEnumerator SetupAudioDetection()
+        {
+            yield return new WaitForSeconds(1f); // 等待场景加载完成
+
+            try
+            {
+                Log.Info("开始设置音频检测...");
+
+                // 获取HeroController实例
+                if (HeroController.instance == null)
+                {
+                    Log.Warn("HeroController.instance为null");
+                    yield break;
+                }
+
+                GameObject heroObject = HeroController.instance.gameObject;
+                Log.Info($"找到Hero对象: {heroObject.name}");
+
+                // 查找Sounds子组件
+                Transform soundsTransform = heroObject.transform.Find("Sounds");
+                if (soundsTransform == null)
+                {
+                    Log.Warn("未找到Sounds子组件");
+                    yield break;
+                }
+
+                Log.Info($"找到Sounds组件: {soundsTransform.name}");
+
+                // 查找Needolin Memory子组件
+                Transform needolinTransform = soundsTransform.Find("Needolin Memory");
+                if (needolinTransform == null)
+                {
+                    Log.Warn("未找到Needolin Memory子组件");
+                    yield break;
+                }
+
+                Log.Info($"找到Needolin Memory组件: {needolinTransform.name}");
+
+                // 获取AudioSource组件
+                _needolinAudioSource = needolinTransform.GetComponent<AudioSource>();
+                if (_needolinAudioSource == null)
+                {
+                    Log.Warn("未找到AudioSource组件");
+                    yield break;
+                }
+
+                Log.Info($"成功获取AudioSource组件，准备开始音频检测");
+                _isCheckingAudio = true;
+                _audioPlayingTimer = 0f;
+            }
+            catch (Exception ex)
+            {
+                Log.Error($"设置音频检测失败: {ex.Message}");
+                _isCheckingAudio = false;
+            }
+        }
+        /// <summary>
+        /// 检查音频播放状态
+        /// </summary>
+        private void CheckAudioPlayingStatus()
+        {
+            if (_needolinAudioSource == null)
+            {
+                Log.Warn("AudioSource为null，重新设置音频检测");
+                StartCoroutine(SetupAudioDetection());
+                return;
+            }
+
+            // 检查音频是否正在播放
+            if (_needolinAudioSource.isPlaying)
+            {
+                _audioPlayingTimer += Time.deltaTime;
+                Log.Info($"音频正在播放，计时器: {_audioPlayingTimer:F2}秒");
+
+                // 如果连续播放时间达到要求
+                if (_audioPlayingTimer >= REQUIRED_PLAYING_TIME)
+                {
+                    Log.Info($"音频连续播放{REQUIRED_PLAYING_TIME}秒，开始切换存档");
+                    _hasSwitchedThisSession = true;
+                    _isCheckingAudio = false;
+                    StartCoroutine(SwitchSaveFile());
+                }
+            }
+            else
+            {
+                // 音频停止播放，重置计时器
+                if (_audioPlayingTimer > 0f)
+                {
+                    Log.Info($"音频停止播放，重置计时器");
+                    _audioPlayingTimer = 0f;
+                }
             }
         }
         /// <summary>
@@ -238,7 +348,8 @@ namespace GodDance.Source.Behaviours
             bool isCurrentlyGodDanceSave = IsGodDanceSave(userSavePath);
 
             Log.Info($"当前存档状态检测 - 是否是GodDance存档: {isCurrentlyGodDanceSave}");
-
+            // 在切换存档前禁用用户操作0.5秒
+            yield return DisablePlayerInput();
             if (isCurrentlyGodDanceSave)
             {
                 // 如果当前是GodDance存档，切换回原存档
@@ -251,6 +362,8 @@ namespace GodDance.Source.Behaviours
                 Log.Info("切换到GodDance存档");
                 yield return SwitchToGodDanceSave();
             }
+            // 重新启用用户操作
+            yield return EnablePlayerInput();
         }
         private bool IsGodDanceSave(string savePath)
         {
@@ -539,7 +652,22 @@ namespace GodDance.Source.Behaviours
                                 saveData.playerData.maxHealthBase = currentPlayerData.maxHealthBase;
                                 saveData.playerData.healthBlue = currentPlayerData.healthBlue;
                                 saveData.playerData.IsSilkSpoolBroken = false;
-
+                                saveData.playerData.HasSeenNeedolin = true;
+                                saveData.playerData.HasSeenNeedolinDown = true;
+                                saveData.playerData.HasSeenNeedolinUp = true;
+                                saveData.playerData.hasNeedolin = true;
+                                saveData.playerData.hasNeedolinMemoryPowerup = true;
+                                saveData.playerData.hasSilkBossNeedle = true;
+                                saveData.playerData.ToolPouchUpgrades = currentPlayerData.ToolPouchUpgrades;
+                                saveData.playerData.ToolKitUpgrades = currentPlayerData.ToolKitUpgrades;
+                                if (currentPlayerData.Tools != null)
+                                {
+                                    saveData.playerData.Tools = currentPlayerData.Tools;
+                                }
+                                if (currentPlayerData.ToolLiquids != null)
+                                {
+                                    saveData.playerData.ToolLiquids = currentPlayerData.ToolLiquids;
+                                }
                                 // 保留工具装备
                                 if (currentPlayerData.ToolEquips != null)
                                 {
@@ -549,6 +677,7 @@ namespace GodDance.Source.Behaviours
                                 {
                                     saveData.playerData.ExtraToolEquips = currentPlayerData.ExtraToolEquips;
                                 }
+
                             }
 
                             Log.Info("玩家数据配置完成");
@@ -632,8 +761,7 @@ namespace GodDance.Source.Behaviours
                 File.Copy(backupPath, userSavePath, true);
                 Log.Info("原存档已从备份恢复");
 
-                // 重新加载存档
-                yield return LoadSaveGame();
+
 
                 // 删除备份文件
                 try
@@ -653,6 +781,76 @@ namespace GodDance.Source.Behaviours
 
             Plugin.IsBossSaveLoaded = false;
             Log.Info("场景切换时存档恢复完成");
+        }
+                /// <summary>
+        /// 禁用玩家输入和操作
+        /// </summary>
+        private IEnumerator DisablePlayerInput()
+        {
+            Log.Info("开始禁用玩家操作...");
+
+            try
+            {
+                // 获取HeroController实例
+                if (HeroController.instance != null)
+                {
+                     // 方法1：直接设置玩家状态为不可控制
+                    HeroController.instance.cState.needolinPlayingMemory = false;
+                    
+                    // 禁用玩家输入
+                    HeroController.instance.StopAnimationControl();
+                    HeroController.instance.RelinquishControl();
+
+                    Log.Info("玩家操作已禁用");
+                }
+                else
+                {
+                    Log.Warn("HeroController.instance为null，无法禁用玩家操作");
+                }
+            }
+            catch (Exception ex)
+            {
+                Log.Error($"禁用玩家操作失败: {ex.Message}");
+            }
+
+            // 等待0.5秒确保操作完全禁用
+            yield return new WaitForSeconds(0.5f);
+        }
+
+        /// <summary>
+        /// 重新启用玩家输入和操作
+        /// </summary>
+        private IEnumerator EnablePlayerInput()
+        {
+            Log.Info("开始重新启用玩家操作...");
+
+            try
+            {
+                // 获取HeroController实例
+                if (HeroController.instance != null)
+                {
+                    // HeroControllerConfig heroControllerConfig = new HeroControllerConfig();
+                    // // 设置HeroControllerConfig的canPlayNeedolin属性为true
+                    // heroControllerConfig.canPlayNeedolin = true;
+                    bool hasNeedolin = HeroController.instance.HasNeedolin();
+                    
+                    // 重新启用玩家输入
+                    HeroController.instance.RegainControl();
+                    HeroController.instance.StartAnimationControl();
+
+                    Log.Info("玩家操作已重新启用");
+                }
+                else
+                {
+                    Log.Warn("HeroController.instance为null，无法启用玩家操作");
+                }
+            }
+            catch (Exception ex)
+            {
+                Log.Error($"启用玩家操作失败: {ex.Message}");
+            }
+
+            yield return null;
         }
     }
 
@@ -709,5 +907,7 @@ namespace GodDance.Source.Behaviours
                 button.onClick.RemoveListener(OnSlotClicked);
             }
         }
+
     }
+
 }
