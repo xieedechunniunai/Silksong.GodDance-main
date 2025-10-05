@@ -1,46 +1,7 @@
-# Lost Sinner Changelog
-
-## [0.4.0] - 2025-09-17
-
-### Added
-
-- Added Thunderstore assets
-
-### Changed
-
-- Increased number of total pins so patterns are consistent
-- Made second phase pin delay slightly slower (0.38 seconds vs 0.33 seconds)
-- Project structure refactor
-
-### Fixed
-
-- Fixed damage for multihit attacks when Barbed Bracelet is equipped
-
-## [0.3.0] - 2025-09-15
-
-### Changed
-
-- Updated README with links
-
-### Fixed
-
-- Force recycle all prefabs used by boss to prevent NREs
-- Force unload manually loaded bundles to prevent load errors
-
-## [0.2.0] - 2025-09-14
-
-### Added
-- Increase complexity of pin patterns
-
-### Changed
-- Updated some sprites in atlases
-
-## [0.1.0] - 2025-09-12
+## [0.1.1] - 2025-10-5
+修复了无法切换纹章进入挑战，修复了死亡后不会刷新Tool的问题
+更改了两边的刺，现在无法下批了，更改了BOSS名字由“机驱舞神”→“机枢舞神”
+## [0.1.0] - 2025-10-4
 
 ### Changed
 - Adapted to fit actual mod
-
-## [0.0.0] - 2025-08-20
-
-### Added
-- Initial project setup
