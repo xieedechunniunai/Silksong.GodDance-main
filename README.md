@@ -1,11 +1,11 @@
-# Silksong.GodDance - 机驱舞神模组 / Silksong.GodDance - CogWork Dancers Mod
+# Silksong.GodDance - 机枢舞神模组 / Silksong.GodDance - CogWork Dancers Mod
 
 [English](#english) | [中文](#中文)
 
 <a name="中文"></a>
 ## 🌟 项目简介
 
-**Silksong.GodDance** 是一个为《空洞骑士：丝之歌》游戏设计的Boss战斗增强模组。该模组重新设计了游戏中的"机驱舞者"（CogWork Dancers）Boss战，增加了新的攻击模式、难度调整和独特的存档切换机制。
+**Silksong.GodDance** 是一个为《空洞骑士：丝之歌》游戏设计的Boss战斗增强模组。该模组重新设计了游戏中的"机枢舞者"（CogWork Dancers）Boss战，增加了新的攻击模式、难度调整和独特的存档切换机制。
 
 ### ✨ 主要特性
 
@@ -30,10 +30,10 @@
 ### 🔧 使用说明
 
 #### 进入Boss战
-1. 前往机驱舞者Boss房间（Cog_Dancers）
+1. 前往机枢舞者Boss房间（Cog_Dancers）
 2. 在房间内使用乐器演奏至少3秒钟
 3. 模组将自动切换到专用Boss存档
-4. 开始挑战增强版的机驱舞者Boss
+4. 开始挑战增强版的机枢舞者Boss
 
 #### 战斗特性
 - **第一阶段**：基础攻击模式，相对简单
@@ -52,7 +52,7 @@
 #### 关键特性
 - 基于Harmony的代码修补
 - 异步资源加载和缓存
-- 事件驱动的状态管理
+- 事件枢动的状态管理
 - 持久化数据存储
 
 ### 📁 项目结构

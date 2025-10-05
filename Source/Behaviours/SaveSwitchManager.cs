@@ -69,7 +69,7 @@ namespace GodDance.Source.Behaviours
                 _hasSwitchedThisSession = false;
                 _isCheckingAudio = false;
                 _audioPlayingTimer = 0f;
-                Log.Info($"进入机驱舞者房间: {newScene.name}");
+                Log.Info($"进入机枢舞者房间: {newScene.name}");
 
                 // 启动音频检测设置
                 StartCoroutine(SetupAudioDetection());
@@ -660,6 +660,8 @@ namespace GodDance.Source.Behaviours
                                 saveData.playerData.hasSilkBossNeedle = true;
                                 saveData.playerData.ToolPouchUpgrades = currentPlayerData.ToolPouchUpgrades;
                                 saveData.playerData.ToolKitUpgrades = currentPlayerData.ToolKitUpgrades;
+                                saveData.playerData.CurrentCrestID = currentPlayerData.CurrentCrestID;
+                                saveData.playerData.PreviousCrestID = currentPlayerData.PreviousCrestID;
                                 if (currentPlayerData.Tools != null)
                                 {
                                     saveData.playerData.Tools = currentPlayerData.Tools;

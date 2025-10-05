@@ -155,7 +155,7 @@ internal class GodDance : MonoBehaviour
         _parentControl.FsmVariables.GetFsmInt("Phase 2 HP").Value += 300;
         _parentControl.FsmVariables.GetFsmInt("Phase 3 HP").Value += 300;
         _parentControl.FsmVariables.GetFsmInt("Phase 4 HP").Value = 84;
-        Log.Info("机驱舞者加血成功Health increased.");
+        Log.Info("机枢舞者加血成功Health increased.");
     }
 
     private void ModifyPhase2()

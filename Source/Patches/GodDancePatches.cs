@@ -72,7 +72,7 @@ internal static class GodDancePatches
             "COGWORK_DANCERS_MAIN" => Language.CurrentLanguage() switch
             {
                 LanguageCode.EN => "CogWork Dancers",
-                LanguageCode.ZH => "机驱舞神",
+                LanguageCode.ZH => "机枢舞神",
                 _ => __result
             },
             _ => __result
