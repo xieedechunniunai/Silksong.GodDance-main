@@ -94,6 +94,8 @@ public class Plugin : BaseUnityPlugin
             
             // 添加存档管理器组件
             _persistentManager.AddComponent<SaveSwitchManager>();
+             // 添加道具恢复管理器组件
+            _persistentManager.AddComponent<ToolRestoreManager>();
             Log.Info("创建持久化存档切换管理器");
         }
         else

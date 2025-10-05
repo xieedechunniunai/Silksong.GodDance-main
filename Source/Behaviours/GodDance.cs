@@ -64,6 +64,7 @@ internal class GodDance : MonoBehaviour
                 flag = false;
             }
         }
+
     }
 
     /// <summary>
@@ -223,7 +224,7 @@ internal class GodDance : MonoBehaviour
         Vector3 spawnPosition1 = new Vector3(53.4f, 10f, 1f);
         GameObject damageObject1 = new GameObject("P2_DamageZone_1");
         damageObject1.transform.position = spawnPosition1;
-        damageObject1.layer = LayerMask.NameToLayer("Attack");
+        damageObject1.layer = LayerMask.NameToLayer("Enemy Attack");
 
         // 添加Rigidbody2D组件用于物理检测
         Rigidbody2D rb1 = damageObject1.AddComponent<Rigidbody2D>();
@@ -264,7 +265,7 @@ internal class GodDance : MonoBehaviour
         Vector3 spawnPosition2 = new Vector3(26.54f, 10f, 1f);
         GameObject damageObject2 = new GameObject("P2_DamageZone_2");
         damageObject2.transform.position = spawnPosition2;
-        damageObject2.layer = LayerMask.NameToLayer("Attack");
+        damageObject2.layer = LayerMask.NameToLayer("Enemy Attack");
 
         // 添加Rigidbody2D组件用于物理检测
         Rigidbody2D rb2 = damageObject2.AddComponent<Rigidbody2D>();
@@ -275,7 +276,6 @@ internal class GodDance : MonoBehaviour
         BoxCollider2D collider2 = damageObject2.AddComponent<BoxCollider2D>();
         collider2.size = new Vector2(1f, 15f);
         collider2.isTrigger = true;
-
         // 添加DamageHero组件并正确配置
         DamageHero damageHero2 = damageObject2.AddComponent<DamageHero>();
         damageHero2.damageDealt = 1;
