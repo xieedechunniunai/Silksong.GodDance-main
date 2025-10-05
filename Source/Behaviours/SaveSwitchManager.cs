@@ -662,6 +662,7 @@ namespace GodDance.Source.Behaviours
                                 saveData.playerData.ToolKitUpgrades = currentPlayerData.ToolKitUpgrades;
                                 saveData.playerData.CurrentCrestID = currentPlayerData.CurrentCrestID;
                                 saveData.playerData.PreviousCrestID = currentPlayerData.PreviousCrestID;
+                                saveData.playerData.hasHarpoonDash = currentPlayerData.hasHarpoonDash;
                                 if (currentPlayerData.Tools != null)
                                 {
                                     saveData.playerData.Tools = currentPlayerData.Tools;
